@@ -27,26 +27,38 @@ wchar_t MULT = L"\u00d7"[0];
 wchar_t EQUALS = L"\u003d"[0];
 wchar_t BLANK = L"\u0020"[0];
 
+class InputConfiguration {
+	public:
+		int format;
+		int precision;
+		int tolerance;
+		string fileName;
+		InputConfiguration() { format = -1; precision = 2; fileName = ""; tolerance = 7;}
+		bool checkConfiguration();
+};
+
 class LinearSystem {
 	private:
 		int variableCount;
+		int precision;
 		double** A;
 		double* x;
 		double* b;
 		bool solved;
 		void loadInstance(string fileName);
 		void initialize();
-		void printVerticalArray(wostream& output), double* array, int size;
+		void printVerticalArray(wostream& output, double* array, int size, wstring label);
 		void printUnformatted(wostream& output);
 		void printCompactMatrix(wostream& output);
 		void printExtendedMatrix(wostream& output);
 		void printEquationMatrix(wostream& output);
 	public:
-		LinearSystem(string fileName);
+		LinearSystem(string fileName, int precision);
 		~LinearSystem();
 		void setXValues(double* x) { this -> x = x; solved = true; }
 		double* getEquation(int line);
 		double* getXValues() { return x; }
+		int getVariableCount() { return variableCount; }
 		void print(wostream& output, int mode);
 };
 
@@ -55,11 +67,13 @@ class Gauss_Seidel {
 		LinearSystem* system;
 		double tolerance;
 		void computeAllRoots();
+		void computeRoots(int tid);
+		double computeRoot(int x_id);
 		double computeError(double* xPrev);
 	public:
-		Gauss_Seidel(string fileName, double tolerance);
-		void computeRootsSequential();
-		void print(ostream& output);
+		Gauss_Seidel(LinearSystem* system, double tolerance);
+		~Gauss_Seidel() { delete system; }
+		void computeRootsSequential() { computeAllRoots(); }
 };
 
 #endif

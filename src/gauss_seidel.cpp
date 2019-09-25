@@ -8,17 +8,18 @@ using namespace std;
 //////////////////////////         AUXILIAR FUNCTIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-int getColumnWidth(double* values, int size) {
+int getColumnWidth(double* values, int size, int precision) {
 	int width = 0;
 	double numLength;
 	for (int i = 0; i < size; i++) {
 		numLength = floor(log10(abs(values[i]))) + 1;
+		if (values[i] == 0) {
+			numLength = 1;
+		}
 		if (values[i] < 0) {
 			numLength++;
 		}
-		if (abs(values[i]) - floor(abs(values[i])) >= 0) {
-			numLength += 3;
-		}
+		numLength += precision + 1;
 		if (numLength > width) {
 			width = numLength;
 		}
@@ -26,11 +27,11 @@ int getColumnWidth(double* values, int size) {
 	return width + 1;
 }
 
-int getColumnWidth(double** values, int size) {
+int getColumnWidth(double** values, int size, int precision) {
 	int width = 0;
 	double numLength;
 	for (int i = 0; i < size; i++) {
-		numLength = getColumnWidth(values[i], size) - 1;
+		numLength = getColumnWidth(values[i], size, precision) - 1;
 		if (numLength > width) {
 			width = numLength;
 		}
@@ -57,10 +58,18 @@ wstring getSubsFromIndex(int index) {
 //////////////////////////            IMPLEMENTATIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-LinearSystem::LinearSystem(string fileName) {
+//////////////////////////#### InputConfiguration:
+
+bool InputConfiguration::checkConfiguration() {
+	return (format >= 0 and precision >= 0 and fileName != "");
+}
+
+//////////////////////////#### LinearSystem:
+
+LinearSystem::LinearSystem(string fileName, int precision) {
 	loadInstance(fileName);
+	this -> precision = precision;
 	solved = false;
-	x = NULL;
 }
 
 LinearSystem::~LinearSystem() {
@@ -107,12 +116,11 @@ double* LinearSystem::getEquation(int line) {
 
 void LinearSystem::printVerticalArray(wostream& output, double* array, int size, wstring label) {
 	int varLine = size / 2;
-	wchar_t pre, beg, content, end;
-	int cw = getColumnWidth(array, size);
+	wchar_t beg, content, end;
+	wstring pre;
+	int cw = getColumnWidth(array, size, precision);
+	output << endl;
 	for (int i = 0; i < size; i++) {
-
-		output << pre;
-
 		if (i == 0) {
 			beg = BEGIN_BRACKET_1;
 			end = END_BRACKET_1;
@@ -123,63 +131,59 @@ void LinearSystem::printVerticalArray(wostream& output, double* array, int size,
 			beg = BEGIN_BRACKET_3;
 			end = END_BRACKET_3;
 		}
+
 		if (i == varLine) {
-			inter1 = MULT;
-			inter2 = EQUALS;
+			pre = label + L" = ";
 		} else {
-			inter1 = inter2 = BLANK;
+			pre = L"    ";
 		}
 
-		output << beg;
+		output << pre << beg << right << setw(cw) << setprecision(precision) << fixed << array[i];
 
-		for (int j = 0; j < variableCount; j++) {
-			output << right << setw(coeffCW) << setprecision(2) << fixed << A[i][j];
-		}
-
-		output << " " << end << " " << inter1 << " " << beg << " ";
-		if (solved) {
-			output << right << setw(varCW) << x[i];
-		} else {
-			output << left << setw(varCW) << "a" << getSubsFromIndex(i);
-		}
-		output << " " << end << " " << inter2 << " " << beg;
-		output << right << setw(resCW) << b[i] << " " << end << endl;
+		output << " " << end << endl;
 	}
 }
 
 void LinearSystem::printUnformatted(wostream& output) {
-	output << "A:" << endl;
+	output << "A:" << endl << endl;
 	for (int i = 0; i < variableCount; i++) {
 		for (int j = 0; j < variableCount; j++) {
-			cout << A[i][j] << '\t';
+			output << A[i][j] << '\t';
 		}
-		cout << endl;
+		output << endl;
 	}
+	output << endl;
+	output << "--------------------------" << endl;
+	output << endl;
 	if (solved) {
-		output << "x:" << endl;
+		output << "x:" << endl << endl;
 		for (int i = 0; i < variableCount; i++) {
-			cout << x[i] << endl;
+			output << x[i] << endl;
 		}
 	}
-	output << "b:" << endl;
+	output << endl;
+	output << "--------------------------" << endl;
+	output << endl;
+	output << "b:" << endl << endl;
 	for (int i = 0; i < variableCount; i++) {
-		cout << b[i] << endl;
+		output << b[i] << endl;
 	}
 }
 
 void LinearSystem::printCompactMatrix(wostream& output) {
 	int varLine = variableCount / 2;
-	wchar_t pre, beg, content, end;
+	wchar_t beg, content, end;
+	wstring pre;
 	pre = BLANK;
 	wchar_t inter1, inter2;
-	int coeffCW = getColumnWidth(A, variableCount);
+	int coeffCW = getColumnWidth(A, variableCount, precision);
 	int varCW;
 	if (solved) {
-		varCW = getColumnWidth(x, variableCount);
+		varCW = getColumnWidth(x, variableCount, precision);
 	} else {
 		varCW = (int) floor(log10(variableCount)) + 1;
 	}
-	int resCW = getColumnWidth(b, variableCount);
+	int resCW = getColumnWidth(b, variableCount, precision);
 
 	for (int i = 0; i < variableCount; i++) {
 
@@ -205,7 +209,7 @@ void LinearSystem::printCompactMatrix(wostream& output) {
 		output << beg;
 
 		for (int j = 0; j < variableCount; j++) {
-			output << right << setw(coeffCW) << setprecision(2) << fixed << A[i][j];
+			output << right << setw(coeffCW) << setprecision(precision) << fixed << A[i][j];
 		}
 
 		output << " " << end << " " << inter1 << " " << beg << " ";
@@ -217,12 +221,17 @@ void LinearSystem::printCompactMatrix(wostream& output) {
 		output << " " << end << " " << inter2 << " " << beg;
 		output << right << setw(resCW) << b[i] << " " << end << endl;
 	}
+
+	if (solved) {
+		printVerticalArray(output, x, variableCount, L"x");
+	}
 }
 
 void LinearSystem::printExtendedMatrix(wostream& output) {
 	int varLine = variableCount / 2;
-	wchar_t pre, beg, content, end;
-	int coeffCW = getColumnWidth(A, variableCount);
+	wchar_t beg, content, end;
+	wstring pre;
+	int coeffCW = getColumnWidth(A, variableCount, precision);
 
 	for (int i = 0; i < variableCount; i++) {
 
@@ -248,35 +257,123 @@ void LinearSystem::printExtendedMatrix(wostream& output) {
 		output << beg;
 
 		for (int j = 0; j < variableCount; j++) {
-			output << right << setw(coeffCW) << setprecision(2) << fixed << A[i][j];
+			output << right << setw(coeffCW) << setprecision(precision) << fixed << A[i][j];
 		}
 
 		output << " " << end << endl;
 	}
 	if (solved) {
-		output << endl;
-		printVerticalArray(output, x, variableCount);
+		printVerticalArray(output, x, variableCount, L"x");
 	}
-	output << endl;
-	printVerticalArray(output, b, variableCount);
-	output << endl;
+	printVerticalArray(output, b, variableCount, L"b");
 
 }
 
 void LinearSystem::printEquationMatrix(wostream& output) {
+	int varLine = variableCount / 2;
+	wchar_t beg, content;
+	wstring pre = L" ";
+	int coeffCW = getColumnWidth(A, variableCount, precision);
+	int resCW = getColumnWidth(b, variableCount, precision);
+	int varCW = (int) floor(log10(variableCount));
+	int columnWid = coeffCW + varCW;
 
+	for (int i = 0; i < variableCount; i++) {
+
+		output << pre;
+
+		if (i == 0) {
+			beg = FUNCTION_1;
+		} else if (i == varLine) {
+			beg = FUNCTION_2;
+		} else if (i < variableCount - 1) {
+			beg = FUNCTION_A;
+		} else {
+			beg = FUNCTION_3;
+		}
+
+		output << beg;
+
+		for (int j = 0; j < variableCount; j++) {
+			output << right << setw(columnWid) << setprecision(precision) << fixed << A[i][j] << "a" << getSubsFromIndex(j);
+		}
+
+		output << " = " << setw(resCW) << setprecision(precision) << fixed << b[i] << endl;
+	}
+
+	if (solved) {
+		int xCW = getColumnWidth(x, variableCount, precision);
+		output << endl << " [";
+		for (int i = 0; i < variableCount - 1; i++) {
+			output << left << setw(varCW) << "a" << getSubsFromIndex(i) << ", ";
+		}
+
+		output << setw(varCW) << "a" << getSubsFromIndex(variableCount - 1) << "] = [";
+
+		for (int i = 0; i < variableCount - 1; i++) {
+			output << setw(xCW) << setprecision(precision) << fixed << x[i] << ", ";
+		}
+		output << setw(xCW) << setprecision(precision) << fixed << x[variableCount - 1] << "]" << endl;
+	}
+	output << endl;
 }
 
 void LinearSystem::print(wostream& output, int mode) {
 	output << endl;
 	
 	switch(mode) {
+		case UNFORMATTED:
+			printUnformatted(output);
+			break;
 		case COMPACT_MATRIX:
 			printCompactMatrix(output);
 			break;
 		case EXTENDED_MATRIX:
-
+			printExtendedMatrix(output);
+			break;
+		case EQUATION:
+			printEquationMatrix(output);
+			break;
 	}
 
 	output << endl;
+}
+
+//////////////////////////#### Gauss_Seidel:
+
+Gauss_Seidel::Gauss_Seidel(LinearSystem* system, double tolerance) {
+	this -> system = system;
+	this -> tolerance = tolerance;
+}
+
+void Gauss_Seidel::computeAllRoots() {
+	double* xPrev;
+	double error;
+	double tol = pow(10, -tolerance);
+	do {
+		xPrev = system -> getXValues();
+
+	} while (error > tol);
+}
+
+double computeRoot(int x_id) {
+
+}
+
+double Gauss_Seidel::computeError(double* xPrev) {
+	double* xValues = system -> getXValues();
+	double num = -1;
+	double den = -1;
+	for (int i = 0; i < system -> getVariableCount(); i++) {
+		double aux = abs(xValues[i] - xPrev[i]);
+		if (aux > num) {
+			num = aux;
+		}
+		aux = xValues[i];
+		if (aux > den) {
+			den = aux;
+		}
+	}
+	if (den == 0) return 1;
+	return (num / den);
 }
