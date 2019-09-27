@@ -47,7 +47,7 @@ class LinearSystem {
 		bool solved;
 		void loadInstance(string fileName);
 		void initialize();
-		void printVerticalArray(wostream& output, double* array, int size, wstring label);
+		
 		void printUnformatted(wostream& output);
 		void printCompactMatrix(wostream& output);
 		void printExtendedMatrix(wostream& output);
@@ -55,10 +55,12 @@ class LinearSystem {
 	public:
 		LinearSystem(string fileName, int precision);
 		~LinearSystem();
-		void setXValues(double* x) { this -> x = x; solved = true; }
+		void setSolved(bool solved) { this -> solved = solved; }
 		double* getEquation(int line);
 		double* getXValues() { return x; }
 		int getVariableCount() { return variableCount; }
+		bool ensureNonZeroDiagonal();
+		void printVerticalArray(wostream& output, double* array, int size, wstring label);
 		void print(wostream& output, int mode);
 };
 
@@ -66,12 +68,14 @@ class Gauss_Seidel {
 	private:
 		LinearSystem* system;
 		double tolerance;
+		InputConfiguration configuration;
 		void computeAllRoots();
 		void computeRoots(int tid);
 		double computeRoot(int x_id);
 		double computeError(double* xPrev);
 	public:
 		Gauss_Seidel(LinearSystem* system, double tolerance);
+		Gauss_Seidel(InputConfiguration config);
 		~Gauss_Seidel() { delete system; }
 		void computeRootsSequential() { computeAllRoots(); }
 };

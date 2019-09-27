@@ -8,6 +8,18 @@ using namespace std;
 //////////////////////////         AUXILIAR FUNCTIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+double* copy(double* original, int vars) {
+	double* newArr = new double[vars];
+	for (int i = 0; i < vars; i++) {
+		newArr[i] = original[i];
+	}
+	return newArr;
+}
+
+void printError() {
+
+}
+
 int getColumnWidth(double* values, int size, int precision) {
 	int width = 0;
 	double numLength;
@@ -112,6 +124,16 @@ double* LinearSystem::getEquation(int line) {
 	}
 	equation[variableCount] = b[line];
 	return equation;
+}
+
+bool LinearSystem::ensureNonZeroDiagonal() {
+	bool ok = true;
+	for (int i = 0; i < variableCount; i++) {
+		if (A[i][i] == 0) {
+			return false;
+		}
+	}
+	return true;
 }
 
 void LinearSystem::printVerticalArray(wostream& output, double* array, int size, wstring label) {
@@ -346,14 +368,50 @@ Gauss_Seidel::Gauss_Seidel(LinearSystem* system, double tolerance) {
 	this -> tolerance = tolerance;
 }
 
+Gauss_Seidel::Gauss_Seidel(InputConfiguration config) {
+	if (config.checkConfiguration()) {
+		configuration = config;
+		system = new LinearSystem(config.fileName, config.precision);
+		tolerance = config.tolerance;
+	} else {
+		printError();
+	}
+}
+
 void Gauss_Seidel::computeAllRoots() {
+	setlocale(LC_ALL, "");
+	if (!system -> ensureNonZeroDiagonal()) {
+		wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
+		return;
+	}
+	int vars = system -> getVariableCount();
+	double* xValues = system -> getXValues();
 	double* xPrev;
+	double* line;
 	double error;
 	double tol = pow(10, -tolerance);
+	int itCount = 0;
 	do {
-		xPrev = system -> getXValues();
-
+		itCount++;
+		xPrev = copy(xValues, vars);
+		for (int i = 0; i < vars; i++) {
+			line = system -> getEquation(i);
+			double sumCurrent = 0;
+			for (int j = 0; j < i; j++) {
+				sumCurrent = line[j] * xValues[j];
+			}
+			double sumPrev = 0;
+			for (int j = i + 1; j < vars; j++) {
+				sumPrev = line[j] * xPrev[j];
+			}
+			xValues[i] = (1.0 / line[i]) * (line[vars] - sumCurrent - sumPrev);
+		}
+		error = computeError(xPrev);
+		wcout << "Iteration " << itCount << "; E = " << error << endl;
+		delete[] xPrev;
 	} while (error > tol);
+	system -> setSolved(true);
+	system -> print(wcout, configuration.format);
 }
 
 double computeRoot(int x_id) {

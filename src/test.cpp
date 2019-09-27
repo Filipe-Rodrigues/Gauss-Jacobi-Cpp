@@ -2,10 +2,6 @@
 
 using namespace std;
 
-void printError() {
-
-}
-
 InputConfiguration getConfiguration(int argc, char** argv) {
 	InputConfiguration config;
 	if (argc > 1) {
@@ -52,7 +48,13 @@ void testLS(InputConfiguration config) {
 	}
 }
 
+void testGS(InputConfiguration config) {
+	Gauss_Seidel gs(config);
+	gs.computeRootsSequential();
+}
+
 int main (int argc, char** argv) {
-	testLS(getConfiguration(argc, argv));
+	//testLS(getConfiguration(argc, argv));
+	testGS(getConfiguration(argc, argv));
 	return 0;
 }
