@@ -1,4 +1,4 @@
-#include "gauss_seidel.cpp"
+#include "gauss_jacobi.cpp"
 
 using namespace std;
 
@@ -48,13 +48,13 @@ void testLS(InputConfiguration config) {
 	}
 }
 
-void testGS(InputConfiguration config) {
-	Gauss_Seidel gs(config);
-	gs.computeRootsSequential();
+void testGJ(InputConfiguration config) {
+	Gauss_Jacobi gj(config);
+	gj.computeRootsSequential();
 }
 
 int main (int argc, char** argv) {
 	//testLS(getConfiguration(argc, argv));
-	testGS(getConfiguration(argc, argv));
+	testGJ(getConfiguration(argc, argv));
 	return 0;
 }

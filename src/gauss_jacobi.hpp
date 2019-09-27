@@ -1,5 +1,5 @@
-#ifndef GAUSS_SEIDEL_HPP
-#define GAUSS_SEIDEL_HPP 1
+#ifndef GAUSS_JACOBI_HPP
+#define GAUSS_JACOBI_HPP 1
 
 #define UNFORMATTED 0
 #define COMPACT_MATRIX 1
@@ -64,7 +64,7 @@ class LinearSystem {
 		void print(wostream& output, int mode);
 };
 
-class Gauss_Seidel {
+class Gauss_Jacobi {
 	private:
 		LinearSystem* system;
 		double tolerance;
@@ -74,9 +74,9 @@ class Gauss_Seidel {
 		double computeRoot(int x_id);
 		double computeError(double* xPrev);
 	public:
-		Gauss_Seidel(LinearSystem* system, double tolerance);
-		Gauss_Seidel(InputConfiguration config);
-		~Gauss_Seidel() { delete system; }
+		Gauss_Jacobi(LinearSystem* system, double tolerance);
+		Gauss_Jacobi(InputConfiguration config);
+		~Gauss_Jacobi() { delete system; }
 		void computeRootsSequential() { computeAllRoots(); }
 };
 

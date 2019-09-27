@@ -1,4 +1,4 @@
-#include "gauss_seidel.hpp"
+#include "gauss_jacobi.hpp"
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -361,14 +361,14 @@ void LinearSystem::print(wostream& output, int mode) {
 	output << endl;
 }
 
-//////////////////////////#### Gauss_Seidel:
+//////////////////////////#### Gauss_Jacobi:
 
-Gauss_Seidel::Gauss_Seidel(LinearSystem* system, double tolerance) {
+Gauss_Jacobi::Gauss_Jacobi(LinearSystem* system, double tolerance) {
 	this -> system = system;
 	this -> tolerance = tolerance;
 }
 
-Gauss_Seidel::Gauss_Seidel(InputConfiguration config) {
+Gauss_Jacobi::Gauss_Jacobi(InputConfiguration config) {
 	if (config.checkConfiguration()) {
 		configuration = config;
 		system = new LinearSystem(config.fileName, config.precision);
@@ -378,7 +378,7 @@ Gauss_Seidel::Gauss_Seidel(InputConfiguration config) {
 	}
 }
 
-void Gauss_Seidel::computeAllRoots() {
+void Gauss_Jacobi::computeAllRoots() {
 	setlocale(LC_ALL, "");
 	if (!system -> ensureNonZeroDiagonal()) {
 		wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
@@ -396,20 +396,18 @@ void Gauss_Seidel::computeAllRoots() {
 		xPrev = copy(xValues, vars);
 		for (int i = 0; i < vars; i++) {
 			line = system -> getEquation(i);
-			double sumCurrent = 0;
-			for (int j = 0; j < i; j++) {
-				sumCurrent = line[j] * xValues[j];
+			double sum = 0;
+			for (int j = 0; j < vars; j++) {
+				if (i != j) {
+					sum += line[j] * xValues[j];
+				}
 			}
-			double sumPrev = 0;
-			for (int j = i + 1; j < vars; j++) {
-				sumPrev = line[j] * xPrev[j];
-			}
-			xValues[i] = (1.0 / line[i]) * (line[vars] - sumCurrent - sumPrev);
+			xValues[i] = (line[vars] - sum) / (line[i]);
 		}
 		error = computeError(xPrev);
 		wcout << "Iteration " << itCount << "; E = " << error << endl;
 		delete[] xPrev;
-	} while (error > tol);
+	} while (error >= tol);
 	system -> setSolved(true);
 	system -> print(wcout, configuration.format);
 }
@@ -418,20 +416,13 @@ double computeRoot(int x_id) {
 
 }
 
-double Gauss_Seidel::computeError(double* xPrev) {
+double Gauss_Jacobi::computeError(double* xPrev) {
 	double* xValues = system -> getXValues();
-	double num = -1;
-	double den = -1;
+	double num = 0;
+	double den = 0;
 	for (int i = 0; i < system -> getVariableCount(); i++) {
-		double aux = abs(xValues[i] - xPrev[i]);
-		if (aux > num) {
-			num = aux;
-		}
-		aux = xValues[i];
-		if (aux > den) {
-			den = aux;
-		}
+		num += pow((xValues[i] - xPrev[i]), 2);
+		den += pow(xValues[i], 2);
 	}
-	if (den == 0) return 1;
-	return (num / den);
+	return (sqrt(num) / sqrt(den));
 }
