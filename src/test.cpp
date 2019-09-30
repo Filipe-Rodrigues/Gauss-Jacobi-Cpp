@@ -1,3 +1,7 @@
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
 #include "gauss_jacobi.cpp"
 
 using namespace std;
@@ -54,6 +58,9 @@ void testGJ(InputConfiguration config) {
 }
 
 int main (int argc, char** argv) {
+	#ifdef _WIN32
+	_setmode(_fileno(stdout), 0x00040000);
+	#endif
 	//testLS(getConfiguration(argc, argv));
 	testGJ(getConfiguration(argc, argv));
 	return 0;

@@ -399,7 +399,7 @@ void Gauss_Jacobi::computeAllRoots() {
 			double sum = 0;
 			for (int j = 0; j < vars; j++) {
 				if (i != j) {
-					sum += line[j] * xValues[j];
+					sum += line[j] * xPrev[j];
 				}
 			}
 			xValues[i] = (line[vars] - sum) / (line[i]);
