@@ -25,7 +25,7 @@ int getColumnWidth(double* values, int size, int precision) {
 	double numLength;
 	for (int i = 0; i < size; i++) {
 		numLength = floor(log10(abs(values[i]))) + 1;
-		if (values[i] == 0) {
+		if (values[i] < 1) {
 			numLength = 1;
 		}
 		if (values[i] < 0) {
@@ -65,6 +65,26 @@ wstring getSubsFromIndex(int index) {
 		index -= c * i;
 	}
 	return subs;
+}
+
+void printIntro(wostream& output) {
+	wchar_t i = L"\u1d62"[0];
+	wchar_t j = L"\u2c7c"[0];
+	wchar_t sum = L"\u2211"[0];
+	wchar_t uneq = L"\u2260"[0];
+	output << "######## Hello! This is the GAUSS-JACOBI method for Linear Systems!\n";
+	output << "###################################################################\n\n";
+	output << "    This work was made by the team FHRR, hope you enjoy it as we do ;)\n\n";
+	output << "    The Gauss-Jacobi method is very simple, it consists in isolating each variable from the system,\n";
+	output << "then using each of the obtained equations to calculate new values for their respective variables.\n";
+	output << "For each iteration it does, the value of the variables gets more and more close to the solution\n";
+	output << "of the system, and the number of iterations is directly proportional to the adopted tolerance, so\n";
+	output << "the greater the precision desired, more iterations will be needed.\n\n";
+	output << "    There's two conditions to assure the convergence of the method: the main diagonal must be free\n";
+	output << "from zero elements, and the matrix must be diagonally dominant, that is:\n\n";
+	output << L"\t\t\tFor each line i, |a" << i << i << "| > " << sum << "|a";
+	output << i << j << "|; i" << uneq << "j\n\n";
+
 }
 
 //////////////////////////            IMPLEMENTATIONS  ////////////////////////
@@ -234,7 +254,7 @@ void LinearSystem::printCompactMatrix(wostream& output) {
 			output << right << setw(coeffCW) << setprecision(precision) << fixed << A[i][j];
 		}
 
-		output << " " << end << " " << inter1 << " " << beg << " ";
+		output << " " << end << " " << inter1 << " " << beg;
 		if (solved) {
 			output << right << setw(varCW) << x[i];
 		} else {
@@ -380,6 +400,7 @@ Gauss_Jacobi::Gauss_Jacobi(InputConfiguration config) {
 
 void Gauss_Jacobi::computeAllRoots() {
 	setlocale(LC_ALL, "");
+	printIntro(wcout);
 	if (!system -> ensureNonZeroDiagonal()) {
 		wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
 		return;
@@ -405,7 +426,6 @@ void Gauss_Jacobi::computeAllRoots() {
 			xValues[i] = (line[vars] - sum) / (line[i]);
 		}
 		error = computeError(xPrev);
-		wcout << "Iteration " << itCount << "; E = " << error << endl;
 		delete[] xPrev;
 	} while (error >= tol);
 	system -> setSolved(true);
