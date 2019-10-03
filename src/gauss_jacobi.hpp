@@ -55,6 +55,7 @@ class LinearSystem {
 	public:
 		LinearSystem(string fileName, int precision);
 		~LinearSystem();
+		void setPrecision(int newPrecision) { precision = newPrecision; }
 		void setSolved(bool solved) { this -> solved = solved; }
 		double* getEquation(int line);
 		double* getXValues() { return x; }
@@ -73,6 +74,7 @@ class Gauss_Jacobi {
 		void computeRoots(int tid);
 		double computeRoot(int x_id);
 		double computeError(double* xPrev);
+		void printIntro(wostream& output);
 	public:
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
 		Gauss_Jacobi(InputConfiguration config);

@@ -35,6 +35,10 @@ InputConfiguration getConfiguration(int argc, char** argv) {
 					config.precision = stoi(argv[count]);
 					count++;
 				}
+			} else if (arg == "--tolerance") {
+				if (++count < argc) {
+					
+				}
 			} else {
 				break;
 			}

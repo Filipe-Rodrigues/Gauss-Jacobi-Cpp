@@ -67,26 +67,6 @@ wstring getSubsFromIndex(int index) {
 	return subs;
 }
 
-void printIntro(wostream& output) {
-	wchar_t i = L"\u1d62"[0];
-	wchar_t j = L"\u2c7c"[0];
-	wchar_t sum = L"\u2211"[0];
-	wchar_t uneq = L"\u2260"[0];
-	output << "######## Hello! This is the GAUSS-JACOBI method for Linear Systems!\n";
-	output << "###################################################################\n\n";
-	output << "    This work was made by the team FHRR, hope you enjoy it as we do ;)\n\n";
-	output << "    The Gauss-Jacobi method is very simple, it consists in isolating each variable from the system,\n";
-	output << "then using each of the obtained equations to calculate new values for their respective variables.\n";
-	output << "For each iteration it does, the value of the variables gets more and more close to the solution\n";
-	output << "of the system, and the number of iterations is directly proportional to the adopted tolerance, so\n";
-	output << "the greater the precision desired, more iterations will be needed.\n\n";
-	output << "    There's two conditions to assure the convergence of the method: the main diagonal must be free\n";
-	output << "from zero elements, and the matrix must be diagonally dominant, that is:\n\n";
-	output << L"\t\t\tFor each line i, |a" << i << i << "| > " << sum << "|a";
-	output << i << j << "|; i" << uneq << "j\n\n";
-
-}
-
 //////////////////////////            IMPLEMENTATIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +299,7 @@ void LinearSystem::printEquationMatrix(wostream& output) {
 	int resCW = getColumnWidth(b, variableCount, precision);
 	int varCW = (int) floor(log10(variableCount));
 	int columnWid = coeffCW + varCW;
+	int sig = 3;
 
 	for (int i = 0; i < variableCount; i++) {
 
@@ -334,13 +315,37 @@ void LinearSystem::printEquationMatrix(wostream& output) {
 			beg = FUNCTION_3;
 		}
 
+		bool firstPassed = false;
 		output << beg;
 
 		for (int j = 0; j < variableCount; j++) {
-			output << right << setw(columnWid) << setprecision(precision) << fixed << A[i][j] << "a" << getSubsFromIndex(j);
+			output << internal << setw(sig);
+			if (A[i][j] != 0) {
+				if (!firstPassed) {
+					if (A[i][j] < 0) {
+						output << "-";
+					} else {
+						output << "";
+					}
+					firstPassed = true;
+				} else {
+					if (A[i][j] < 0) {
+						output << "-";
+					} else {
+						output << "+";
+					}
+				}
+			} else {
+				//output << "";
+			}
+			if (A[i][j] != 0) {
+				output << right << setw(columnWid) << setprecision(precision) << fixed << abs(A[i][j]) << "a" << getSubsFromIndex(j);
+			} else {
+				//output << "";
+			}
 		}
 
-		output << " = " << setw(resCW) << setprecision(precision) << fixed << b[i] << endl;
+		output << "  = " << setw(resCW) << setprecision(precision) << fixed << b[i] << endl;
 	}
 
 	if (solved) {
@@ -396,6 +401,30 @@ Gauss_Jacobi::Gauss_Jacobi(InputConfiguration config) {
 	} else {
 		printError();
 	}
+}
+
+void Gauss_Jacobi::printIntro(wostream& output) {
+	wchar_t i = L"\u1d62"[0];
+	wchar_t j = L"\u2c7c"[0];
+	wchar_t sum = L"\u2211"[0];
+	wchar_t uneq = L"\u2260"[0];
+	output << "######## Hello! This is the GAUSS-JACOBI method for Linear Systems!\n";
+	output << "###################################################################\n\n";
+	output << "    This work was made by the team FHRR, hope you enjoy it as we do ;)\n\n";
+	output << "    The Gauss-Jacobi method is very simple, it consists in isolating each variable from the system,\n";
+	output << "then using each of the obtained equations to calculate new values for their respective variables.\n";
+	output << "For each iteration it does, the value of the variables gets more and more close to the solution of\n";
+	output << "the system, and the number of iterations is directly proportional to the adopted tolerance, so the\n";
+	output << "greater the precision desired, the more iterations will be needed.\n\n";
+	output << "    There's two conditions to assure the convergence of the method: the main diagonal must be free\n";
+	output << "from zero elements, and the matrix must be diagonally dominant, that is:\n\n";
+	output << L"\t\t\tFor each line i, |a" << i << i << "| > " << sum << "|a";
+	output << i << j << "|; i" << uneq << "j\n\n";
+	output << "    The input file you gave me had this linear system:\n";
+	system -> setPrecision(0);
+	system -> print(output, EQUATION);
+	system -> setPrecision(configuration.precision);
+	output << "After applying the Gauss-Jacobi method, this is what I've got for you:\n";
 }
 
 void Gauss_Jacobi::computeAllRoots() {
