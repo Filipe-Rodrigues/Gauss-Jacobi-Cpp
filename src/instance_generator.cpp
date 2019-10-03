@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cmath>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -29,23 +30,24 @@ void generateInstance(int size, int sparsity) {
 			int sum = 0;
 			for (int j = 0; j < size; j++) {
 				if (i != j) {
-					int roulette = rand() % 100;
-					if (roulette < sparsity) {
+					int zeroRoulette = rand() % 100;
+					if (zeroRoulette < sparsity) {
 						matrix[i][j] = 0;
 					} else {
-						matrix[i][j] = rand() % 30 + 30;
-						sum += matrix[i][j];
+						matrix[i][j] = rand() % 60 - 30;
+						sum += abs(matrix[i][j]);
 					}
 				}
 			}
 			sum += rand() % 15 + 10;
+			sum *= (rand() % 10 < 5) ? (-1) : (1);
 			matrix[i][i] = sum;
 		}
 		for (int i = 0; i < size; i++) {
 			for (int j = 0; j < size; j++) {
 				output << matrix[i][j] << "\t";
 			}
-			output << rand() % 100 + 10 << endl;
+			output << size * (rand() % 2000 - 1000) << endl;
 		}
 		output.close();
 	}

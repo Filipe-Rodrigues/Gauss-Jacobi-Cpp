@@ -19,16 +19,21 @@ InputConfiguration getConfiguration(int argc, char** argv) {
 			} else if (arg == "--compact") {
 				config.format = COMPACT_MATRIX;
 				count++;
+
 			} else if (arg == "--extended") {
 				config.format = EXTENDED_MATRIX;
 				count++;
 			} else if (arg == "--equation") {
 				config.format = EQUATION;
 				count++;
+			} else if (arg == "--results") {
+				config.format = RESULT_ONLY;
+				count++;
 			} else if (arg == "--instance") {
 				if (++count < argc) {
 					config.fileName = string(argv[count]);
 					count++;
+					config.error = false;
 				}
 			} else if (arg == "--precision") {
 				if (++count < argc) {
@@ -37,9 +42,11 @@ InputConfiguration getConfiguration(int argc, char** argv) {
 				}
 			} else if (arg == "--tolerance") {
 				if (++count < argc) {
-					
+					config.tolerance = stoi(argv[count]);
+					count++;
 				}
 			} else {
+				config.error = true;
 				break;
 			}
 		}

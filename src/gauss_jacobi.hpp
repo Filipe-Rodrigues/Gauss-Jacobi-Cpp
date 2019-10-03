@@ -1,10 +1,11 @@
 #ifndef GAUSS_JACOBI_HPP
 #define GAUSS_JACOBI_HPP 1
 
-#define UNFORMATTED 0
-#define COMPACT_MATRIX 1
-#define EXTENDED_MATRIX 2
-#define EQUATION 3
+#define RESULT_ONLY 0
+#define UNFORMATTED 1
+#define COMPACT_MATRIX 2
+#define EXTENDED_MATRIX 3
+#define EQUATION 4
 
 #include <iostream>
 #include <string>
@@ -33,7 +34,9 @@ class InputConfiguration {
 		int precision;
 		int tolerance;
 		string fileName;
-		InputConfiguration() { format = -1; precision = 2; fileName = ""; tolerance = 7;}
+		bool error;
+		InputConfiguration() { format = 0; precision = 2; fileName = ""; tolerance = 5; error = true; }
+		InputConfiguration(const InputConfiguration& conf2);
 		bool checkConfiguration();
 };
 
@@ -47,7 +50,8 @@ class LinearSystem {
 		bool solved;
 		void loadInstance(string fileName);
 		void initialize();
-		
+		double* subs();
+		void printResults(wostream& output);
 		void printUnformatted(wostream& output);
 		void printCompactMatrix(wostream& output);
 		void printExtendedMatrix(wostream& output);
@@ -59,6 +63,8 @@ class LinearSystem {
 		void setSolved(bool solved) { this -> solved = solved; }
 		double* getEquation(int line);
 		double* getXValues() { return x; }
+		double* getB() { return b; }
+		double* getResidualVector();
 		int getVariableCount() { return variableCount; }
 		bool ensureNonZeroDiagonal();
 		void printVerticalArray(wostream& output, double* array, int size, wstring label);
@@ -75,11 +81,13 @@ class Gauss_Jacobi {
 		double computeRoot(int x_id);
 		double computeError(double* xPrev);
 		void printIntro(wostream& output);
+		void printFullHeader(wostream& output);
+		void printBasicHeader(wostream& output);
 	public:
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
 		Gauss_Jacobi(InputConfiguration config);
 		~Gauss_Jacobi() { delete system; }
-		void computeRootsSequential() { computeAllRoots(); }
+		void computeRootsSequential() { if (configuration.checkConfiguration()) computeAllRoots(); }
 };
 
 #endif

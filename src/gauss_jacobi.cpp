@@ -72,8 +72,16 @@ wstring getSubsFromIndex(int index) {
 
 //////////////////////////#### InputConfiguration:
 
+InputConfiguration::InputConfiguration(const InputConfiguration& conf2) {
+	format = conf2.format;
+	precision = conf2.precision;
+	tolerance = conf2.tolerance;
+	fileName = conf2.fileName;
+	error = conf2.error;
+}
+
 bool InputConfiguration::checkConfiguration() {
-	return (format >= 0 and precision >= 0 and fileName != "");
+	return !error;
 }
 
 //////////////////////////#### LinearSystem:
@@ -126,6 +134,26 @@ double* LinearSystem::getEquation(int line) {
 	return equation;
 }
 
+double* LinearSystem::subs() {
+	double* result = new double[variableCount];
+	for (int i = 0; i < variableCount; i++) {
+		result[i] = 0;
+		for (int j = 0; j < variableCount; j++) {
+			result[i] += A[i][j] * x[j];
+		}
+	}
+	return result;
+}
+
+double* LinearSystem::getResidualVector() {
+	double* xSubs = subs();
+	double* result = new double[variableCount];
+	for (int i = 0; i < variableCount; i++) {
+		result[i] = abs(xSubs[i] - b[i]);
+	}
+	return result;
+}
+
 bool LinearSystem::ensureNonZeroDiagonal() {
 	bool ok = true;
 	for (int i = 0; i < variableCount; i++) {
@@ -134,6 +162,14 @@ bool LinearSystem::ensureNonZeroDiagonal() {
 		}
 	}
 	return true;
+}
+
+void LinearSystem::printResults(wostream& output) {
+	output << endl;
+	double* residue = getResidualVector();
+	printVerticalArray(output, x, variableCount, L"x");
+	printVerticalArray(output, residue, variableCount, L"r");
+	delete[] residue;
 }
 
 void LinearSystem::printVerticalArray(wostream& output, double* array, int size, wstring label) {
@@ -200,6 +236,7 @@ void LinearSystem::printCompactMatrix(wostream& output) {
 	wchar_t inter1, inter2;
 	int coeffCW = getColumnWidth(A, variableCount, precision);
 	int varCW;
+	double* xSubs = subs();
 	if (solved) {
 		varCW = getColumnWidth(x, variableCount, precision);
 	} else {
@@ -241,9 +278,9 @@ void LinearSystem::printCompactMatrix(wostream& output) {
 			output << left << setw(varCW) << "a" << getSubsFromIndex(i);
 		}
 		output << " " << end << " " << inter2 << " " << beg;
-		output << right << setw(resCW) << b[i] << " " << end << endl;
+		output << right << setw(resCW) << xSubs[i] << " " << end << endl;
 	}
-
+	delete[] xSubs;
 	if (solved) {
 		printVerticalArray(output, x, variableCount, L"x");
 	}
@@ -285,7 +322,10 @@ void LinearSystem::printExtendedMatrix(wostream& output) {
 		output << " " << end << endl;
 	}
 	if (solved) {
+		double* xSubs = subs();
 		printVerticalArray(output, x, variableCount, L"x");
+		printVerticalArray(output, xSubs, variableCount, L"s");
+		delete[] xSubs;
 	}
 	printVerticalArray(output, b, variableCount, L"b");
 
@@ -369,6 +409,9 @@ void LinearSystem::print(wostream& output, int mode) {
 	output << endl;
 	
 	switch(mode) {
+		case RESULT_ONLY:
+			printResults(output);
+			break;
 		case UNFORMATTED:
 			printUnformatted(output);
 			break;
@@ -420,6 +463,9 @@ void Gauss_Jacobi::printIntro(wostream& output) {
 	output << "from zero elements, and the matrix must be diagonally dominant, that is:\n\n";
 	output << L"\t\t\tFor each line i, |a" << i << i << "| > " << sum << "|a";
 	output << i << j << "|; i" << uneq << "j\n\n";
+}
+
+void Gauss_Jacobi::printFullHeader(wostream& output) {
 	output << "    The input file you gave me had this linear system:\n";
 	system -> setPrecision(0);
 	system -> print(output, EQUATION);
@@ -427,9 +473,23 @@ void Gauss_Jacobi::printIntro(wostream& output) {
 	output << "After applying the Gauss-Jacobi method, this is what I've got for you:\n";
 }
 
+void Gauss_Jacobi::printBasicHeader(wostream& output) {
+	wchar_t dot = L"\u22c5"[0];
+	wchar_t note = L"\u2042"[0];
+	output << "    As per your request, I'll give you only the results from the operations.\n";
+	output << "    First you have the x vector, then you have the residue vector ";
+	output << "r = |A" << dot << "x - b|\n\n    ";
+	output << note << " Note that the pipes here means absolute value, not norm.\n";
+}
+
 void Gauss_Jacobi::computeAllRoots() {
 	setlocale(LC_ALL, "");
 	printIntro(wcout);
+	if (configuration.format == RESULT_ONLY) {
+		printBasicHeader(wcout);
+	} else {
+		printFullHeader(wcout);
+	}
 	if (!system -> ensureNonZeroDiagonal()) {
 		wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
 		return;
