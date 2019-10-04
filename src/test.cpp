@@ -66,7 +66,7 @@ void testLS(InputConfiguration config) {
 
 void testGJ(InputConfiguration config) {
 	Gauss_Jacobi gj(config);
-	gj.computeRootsSequential();
+	gj.findSolution(false);
 }
 
 int main (int argc, char** argv) {

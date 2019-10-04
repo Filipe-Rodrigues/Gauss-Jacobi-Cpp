@@ -76,10 +76,9 @@ class Gauss_Jacobi {
 		LinearSystem* system;
 		double tolerance;
 		InputConfiguration configuration;
-		void computeAllRoots();
-		void computeRoots(int tid);
-		double computeRoot(int x_id);
 		double computeError(double* xPrev);
+		void computeRootsSequential();
+		void computeRootsParallel();
 		void printIntro(wostream& output);
 		void printFullHeader(wostream& output);
 		void printBasicHeader(wostream& output);
@@ -87,7 +86,7 @@ class Gauss_Jacobi {
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
 		Gauss_Jacobi(InputConfiguration config);
 		~Gauss_Jacobi() { delete system; }
-		void computeRootsSequential() { if (configuration.checkConfiguration()) computeAllRoots(); }
+		void findSolution(bool multithreaded);
 };
 
 #endif

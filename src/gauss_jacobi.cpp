@@ -17,7 +17,22 @@ double* copy(double* original, int vars) {
 }
 
 void printError() {
-
+	wcout << "\nYou gave me incorrect parameters!\n";
+	wcout << "Here, learn your commands for me:\n\n";
+	wcout << left << setw(30) << "--instance [INSTANCE_NAME.txt]";
+	wcout << left << "With this you give me the name of the file which have the linear system you want to play with.\n";
+	wcout << left << setw(30) << "--compact";
+	wcout << left << "It means you want me to show the results in a compact matrix multiplication view. Don't use it if the input is too large!\n";
+	wcout << left << setw(30) << "--extended";
+	wcout << left << "It means you want me to show each matrix separately. Don't use it if the input is too large!\n";
+	wcout << left << setw(30) << "--equation";
+	wcout << left << "It means you want me to show the linear system in the analytic form. Don't use it if the input is too large!\n";
+	wcout << left << setw(30) << "--results";
+	wcout << left << "Use it to show only the results of the operations, that is, the x values and the residual vector. Perfect for large inputs!\n";
+	wcout << left << setw(30) << "--precision [DECIMAL_PLACES]";
+	wcout << left << "Here you specify the precision you want me to show on the output. It doesn't really impact on the calculations...\n";
+	wcout << left << setw(30) << "--tolerance [MAX_ERROR]";
+	wcout << left << "And here you specify what's the maximum tolerated error. A bigger value shows better results, but it's slower!\n\n";
 }
 
 int getColumnWidth(double* values, int size, int precision) {
@@ -482,47 +497,47 @@ void Gauss_Jacobi::printBasicHeader(wostream& output) {
 	output << note << " Note that the pipes here means absolute value, not norm.\n";
 }
 
-void Gauss_Jacobi::computeAllRoots() {
+void Gauss_Jacobi::findSolution(bool multithreaded) {
 	setlocale(LC_ALL, "");
-	printIntro(wcout);
-	if (configuration.format == RESULT_ONLY) {
-		printBasicHeader(wcout);
-	} else {
-		printFullHeader(wcout);
-	}
-	if (!system -> ensureNonZeroDiagonal()) {
-		wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
-		return;
-	}
-	int vars = system -> getVariableCount();
-	double* xValues = system -> getXValues();
-	double* xPrev;
-	double* line;
-	double error;
-	double tol = pow(10, -tolerance);
-	int itCount = 0;
-	do {
-		itCount++;
-		xPrev = copy(xValues, vars);
-		for (int i = 0; i < vars; i++) {
-			line = system -> getEquation(i);
-			double sum = 0;
-			for (int j = 0; j < vars; j++) {
-				if (i != j) {
-					sum += line[j] * xPrev[j];
-				}
-			}
-			xValues[i] = (line[vars] - sum) / (line[i]);
+	if (configuration.checkConfiguration()) {
+		printIntro(wcout);
+		if (configuration.format == RESULT_ONLY) {
+			printBasicHeader(wcout);
+		} else {
+			printFullHeader(wcout);
 		}
-		error = computeError(xPrev);
-		delete[] xPrev;
-	} while (error >= tol);
-	system -> setSolved(true);
-	system -> print(wcout, configuration.format);
-}
-
-double computeRoot(int x_id) {
-
+		if (!system -> ensureNonZeroDiagonal()) {
+			wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
+			return;
+		}
+		int vars = system -> getVariableCount();
+		double* xValues = system -> getXValues();
+		double* xPrev;
+		double* line;
+		double error;
+		double tol = pow(10, -tolerance);
+		int itCount = 0;
+		do {
+			itCount++;
+			xPrev = copy(xValues, vars);
+			for (int i = 0; i < vars; i++) {
+				line = system -> getEquation(i);
+				double sum = 0;
+				for (int j = 0; j < vars; j++) {
+					if (i != j) {
+						sum += line[j] * xPrev[j];
+					}
+				}
+				xValues[i] = (line[vars] - sum) / (line[i]);
+			}
+			error = computeError(xPrev);
+			delete[] xPrev;
+		} while (error >= tol);
+		system -> setSolved(true);
+		system -> print(wcout, configuration.format);
+	} else {
+		printError();
+	}
 }
 
 double Gauss_Jacobi::computeError(double* xPrev) {
