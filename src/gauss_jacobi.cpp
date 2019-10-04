@@ -2,6 +2,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <omp.h>
 
 using namespace std;
 
@@ -82,13 +83,53 @@ wstring getSubsFromIndex(int index) {
 	return subs;
 }
 
+wstring getTimeUnit(double resolution) {
+	if (resolution == SECOND) return L"s";
+	else if (resolution == MILLISECOND) return L"ms";
+	else if (resolution == MICROSECOND) return L"\u03bcs";
+	else if (resolution == NANOSECOND) return L"ns";
+}
+
 //////////////////////////            IMPLEMENTATIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////#### Stopwatch:
+
+void Stopwatch::mark() {
+	if (t0 == -1) {
+		t0 = clock();
+	} else if (t1 == -1) {
+		t1 = clock();
+	} else {
+		reset();
+		t0 = clock();
+	}
+}
+
+double Stopwatch::getElapsedTime(double resolution) {
+	if (good()) {
+		return double(resolution * (t1 - t0)) / CLOCKS_PER_SEC;
+	} else {
+		return -1;
+	}
+}
+
 //////////////////////////#### InputConfiguration:
+
+InputConfiguration::InputConfiguration() {
+	format = 0;
+	strategy = 0;
+	resolution = MICROSECOND;
+	precision = 2;
+	fileName = "";
+	tolerance = 5;
+	error = true;
+}
 
 InputConfiguration::InputConfiguration(const InputConfiguration& conf2) {
 	format = conf2.format;
+	strategy = conf2.strategy;
+	resolution = conf2.resolution;
 	precision = conf2.precision;
 	tolerance = conf2.tolerance;
 	fileName = conf2.fileName;
@@ -305,7 +346,7 @@ void LinearSystem::printExtendedMatrix(wostream& output) {
 	int varLine = variableCount / 2;
 	wchar_t beg, content, end;
 	wstring pre;
-	int coeffCW = getColumnWidth(A, variableCount, precision);
+	int coeffCW = getColumnWidth(A, variableCount, precision) + 1;
 
 	for (int i = 0; i < variableCount; i++) {
 
@@ -423,7 +464,7 @@ void LinearSystem::printEquationMatrix(wostream& output) {
 void LinearSystem::print(wostream& output, int mode) {
 	output << endl;
 	
-	switch(mode) {
+	switch (mode) {
 		case RESULT_ONLY:
 			printResults(output);
 			break;
@@ -497,7 +538,7 @@ void Gauss_Jacobi::printBasicHeader(wostream& output) {
 	output << note << " Note that the pipes here means absolute value, not norm.\n";
 }
 
-void Gauss_Jacobi::findSolution(bool multithreaded) {
+void Gauss_Jacobi::findSolution() {
 	setlocale(LC_ALL, "");
 	if (configuration.checkConfiguration()) {
 		printIntro(wcout);
@@ -510,16 +551,66 @@ void Gauss_Jacobi::findSolution(bool multithreaded) {
 			wcout << "The linear system you gave me isn't adequate, it must have non-zero diagonal!" << endl;
 			return;
 		}
-		int vars = system -> getVariableCount();
-		double* xValues = system -> getXValues();
-		double* xPrev;
-		double* line;
-		double error;
-		double tol = pow(10, -tolerance);
-		int itCount = 0;
-		do {
-			itCount++;
-			xPrev = copy(xValues, vars);
+		switch (configuration.strategy) {
+			case SEQUENTIAL:
+				computeRootsSequential();
+				break;
+			case PARALLEL:
+				computeRootsParallel();
+				break;
+			default:
+				return;
+		}
+		system -> setSolved(true);
+		system -> print(wcout, configuration.format);
+		wstring unit = getTimeUnit(configuration.resolution);
+		wcout << "\nThe time taken to do everything was " << stopwatch.getElapsedTime(configuration.resolution) << unit << ".\n\n";
+	}
+}
+
+void Gauss_Jacobi::computeRootsSequential() {
+	int vars = system -> getVariableCount();
+	double* xValues = system -> getXValues();
+	double* xPrev;
+	double* line;
+	double error;
+	double tol = pow(10, -tolerance);
+	int itCount = 0;
+	stopwatch.mark();
+	do {
+		itCount++;
+		xPrev = copy(xValues, vars);
+		for (int i = 0; i < vars; i++) {
+			line = system -> getEquation(i);
+			double sum = 0;
+			for (int j = 0; j < vars; j++) {
+				if (i != j) {
+					sum += line[j] * xPrev[j];
+				}
+			}
+			xValues[i] = (line[vars] - sum) / (line[i]);
+		}
+		error = computeError(xPrev);
+		delete[] xPrev;
+	} while (error >= tol);
+	stopwatch.mark();
+}
+
+void Gauss_Jacobi::computeRootsParallel() {
+	int vars = system -> getVariableCount();
+	double* xValues = system -> getXValues();
+	double* xPrev;
+	double* line;
+	double error;
+	double tol = pow(10, -tolerance);
+	int itCount = 0;
+	stopwatch.mark();
+	do {
+		itCount++;
+		xPrev = copy(xValues, vars);
+		#pragma omp parallel shared(vars, xValues, xPrev) private(line)
+		{
+			#pragma omp for schedule(guided) nowait
 			for (int i = 0; i < vars; i++) {
 				line = system -> getEquation(i);
 				double sum = 0;
@@ -530,14 +621,11 @@ void Gauss_Jacobi::findSolution(bool multithreaded) {
 				}
 				xValues[i] = (line[vars] - sum) / (line[i]);
 			}
-			error = computeError(xPrev);
-			delete[] xPrev;
-		} while (error >= tol);
-		system -> setSolved(true);
-		system -> print(wcout, configuration.format);
-	} else {
-		printError();
-	}
+		}
+		error = computeError(xPrev);
+		delete[] xPrev;
+	} while (error >= tol);
+	stopwatch.mark();
 }
 
 double Gauss_Jacobi::computeError(double* xPrev) {

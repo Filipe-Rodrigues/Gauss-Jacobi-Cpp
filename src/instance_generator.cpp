@@ -45,11 +45,15 @@ void generateInstance(int size, int sparsity) {
 		}
 		for (int i = 0; i < size; i++) {
 			for (int j = 0; j < size; j++) {
-				output << matrix[i][j] << "\t";
+				output << matrix[i][j] << " ";
 			}
 			output << size * (rand() % 2000 - 1000) << endl;
 		}
 		output.close();
+		for (int i = 0; i < size; i++) {
+			delete[] matrix[i];
+		}
+		delete[] matrix;
 	}
 }
 

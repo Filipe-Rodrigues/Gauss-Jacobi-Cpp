@@ -6,7 +6,15 @@
 #define COMPACT_MATRIX 2
 #define EXTENDED_MATRIX 3
 #define EQUATION 4
+#define SEQUENTIAL 0
+#define PARALLEL 1
 
+#define SECOND 1
+#define MILLISECOND 1000.0
+#define MICROSECOND 1000000.0
+#define NANOSECOND 1000000000.0
+
+#include <ctime>
 #include <iostream>
 #include <string>
 
@@ -28,14 +36,28 @@ wchar_t MULT = L"\u00d7"[0];
 wchar_t EQUALS = L"\u003d"[0];
 wchar_t BLANK = L"\u0020"[0];
 
+class Stopwatch {
+	private:
+		clock_t t0;
+		clock_t t1;
+		bool good() { return (t0 != -1 and t1 != -1); }
+	public:
+		Stopwatch() { reset(); }
+		void reset() { t0 = -1; t1 = -1; }
+		void mark();
+		double getElapsedTime(double resolution);
+};
+
 class InputConfiguration {
 	public:
 		int format;
+		int strategy;
+		double resolution;
 		int precision;
 		int tolerance;
 		string fileName;
 		bool error;
-		InputConfiguration() { format = 0; precision = 2; fileName = ""; tolerance = 5; error = true; }
+		InputConfiguration();
 		InputConfiguration(const InputConfiguration& conf2);
 		bool checkConfiguration();
 };
@@ -76,6 +98,7 @@ class Gauss_Jacobi {
 		LinearSystem* system;
 		double tolerance;
 		InputConfiguration configuration;
+		Stopwatch stopwatch;
 		double computeError(double* xPrev);
 		void computeRootsSequential();
 		void computeRootsParallel();
@@ -86,7 +109,7 @@ class Gauss_Jacobi {
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
 		Gauss_Jacobi(InputConfiguration config);
 		~Gauss_Jacobi() { delete system; }
-		void findSolution(bool multithreaded);
+		void findSolution();
 };
 
 #endif

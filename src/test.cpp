@@ -29,6 +29,24 @@ InputConfiguration getConfiguration(int argc, char** argv) {
 			} else if (arg == "--results") {
 				config.format = RESULT_ONLY;
 				count++;
+			} else if (arg == "--sequential") {
+				config.strategy = SEQUENTIAL;
+				count++;
+			} else if (arg == "--parallel") {
+				config.strategy = PARALLEL;
+				count++;
+			} else if (arg == "--secs") {
+				config.resolution = SECOND;
+				count++;
+			} else if (arg == "--millis") {
+				config.resolution = MILLISECOND;
+				count++;
+			} else if (arg == "--micros") {
+				config.resolution = MICROSECOND;
+				count++;
+			} else if (arg == "--nanos") {
+				config.resolution = NANOSECOND;
+				count++;
 			} else if (arg == "--instance") {
 				if (++count < argc) {
 					config.fileName = string(argv[count]);
@@ -66,7 +84,7 @@ void testLS(InputConfiguration config) {
 
 void testGJ(InputConfiguration config) {
 	Gauss_Jacobi gj(config);
-	gj.findSolution(false);
+	gj.findSolution();
 }
 
 int main (int argc, char** argv) {
@@ -74,7 +92,7 @@ int main (int argc, char** argv) {
 	_setmode(_fileno(stdout), 0x00040000);
 	system("cls");
 	#elif __linux
-	system("reset");
+	system("clear");
 	#endif
 	//testLS(getConfiguration(argc, argv));
 	testGJ(getConfiguration(argc, argv));
