@@ -7,7 +7,8 @@
 #define EXTENDED_MATRIX 3
 #define EQUATION 4
 #define SEQUENTIAL 0
-#define PARALLEL 1
+#define PARALLEL_OPENMP 1
+#define PARALLEL_PTHREAD 2
 
 #define SECOND 1
 #define MILLISECOND 1000.0
@@ -52,6 +53,7 @@ class InputConfiguration {
 	public:
 		int format;
 		int strategy;
+		int threads;
 		double resolution;
 		int precision;
 		int tolerance;
@@ -85,6 +87,7 @@ class LinearSystem {
 		void setSolved(bool solved) { this -> solved = solved; }
 		double* getEquation(int line);
 		double* getXValues() { return x; }
+		double** getA() { return A; }
 		double* getB() { return b; }
 		double* getResidualVector();
 		int getVariableCount() { return variableCount; }
@@ -97,19 +100,34 @@ class Gauss_Jacobi {
 	private:
 		LinearSystem* system;
 		double tolerance;
+		double* xPrev;
 		InputConfiguration configuration;
 		Stopwatch stopwatch;
-		double computeError(double* xPrev);
+		bool running;
+		int readyCounter;
+		bool* clear;
+		pthread_mutex_t mutex;
+		double computeError();
 		void computeRootsSequential();
-		void computeRootsParallel();
+		void computeRootsParallelOpenMP();
+		void computeRootsParallelPThread();
 		void printIntro(wostream& output);
 		void printFullHeader(wostream& output);
 		void printBasicHeader(wostream& output);
+		void gauss_jacobi_worker(int threadID);
+		static void* worker_wrapper(void* param);
 	public:
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
 		Gauss_Jacobi(InputConfiguration config);
-		~Gauss_Jacobi() { delete system; }
+		~Gauss_Jacobi() { delete system; delete[] xPrev; }
 		void findSolution();
+};
+
+class ThreadParameters {
+	public:
+		Gauss_Jacobi* instance;
+		int threadID;
+		ThreadParameters(Gauss_Jacobi* inst, int tid) { instance = inst; threadID = tid; }
 };
 
 #endif

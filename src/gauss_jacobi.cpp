@@ -1,20 +1,21 @@
 #include "gauss_jacobi.hpp"
 #include <cmath>
+
 #include <fstream>
 #include <iomanip>
 #include <omp.h>
+#include <pthread.h>
+#include <unistd.h>
 
 using namespace std;
 
 //////////////////////////         AUXILIAR FUNCTIONS  ////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-double* copy(double* original, int vars) {
-	double* newArr = new double[vars];
+void copy(double* copied, double* original, int vars) {
 	for (int i = 0; i < vars; i++) {
-		newArr[i] = original[i];
+		copied[i] = original[i];
 	}
-	return newArr;
 }
 
 void printError() {
@@ -117,8 +118,9 @@ double Stopwatch::getElapsedTime(double resolution) {
 //////////////////////////#### InputConfiguration:
 
 InputConfiguration::InputConfiguration() {
-	format = 0;
-	strategy = 0;
+	format = RESULT_ONLY;
+	strategy = SEQUENTIAL;
+	threads = 1;
 	resolution = MICROSECOND;
 	precision = 2;
 	fileName = "";
@@ -129,6 +131,7 @@ InputConfiguration::InputConfiguration() {
 InputConfiguration::InputConfiguration(const InputConfiguration& conf2) {
 	format = conf2.format;
 	strategy = conf2.strategy;
+	threads = conf2.threads;
 	resolution = conf2.resolution;
 	precision = conf2.precision;
 	tolerance = conf2.tolerance;
@@ -497,6 +500,7 @@ Gauss_Jacobi::Gauss_Jacobi(InputConfiguration config) {
 		configuration = config;
 		system = new LinearSystem(config.fileName, config.precision);
 		tolerance = config.tolerance;
+		xPrev = new double[system -> getVariableCount()];
 	} else {
 		printError();
 	}
@@ -555,8 +559,11 @@ void Gauss_Jacobi::findSolution() {
 			case SEQUENTIAL:
 				computeRootsSequential();
 				break;
-			case PARALLEL:
-				computeRootsParallel();
+			case PARALLEL_OPENMP:
+				computeRootsParallelOpenMP();
+				break;
+			case PARALLEL_PTHREAD:
+				computeRootsParallelPThread();
 				break;
 			default:
 				return;
@@ -571,64 +578,152 @@ void Gauss_Jacobi::findSolution() {
 void Gauss_Jacobi::computeRootsSequential() {
 	int vars = system -> getVariableCount();
 	double* xValues = system -> getXValues();
-	double* xPrev;
-	double* line;
+	double** matrix = system -> getA();
+	double* secHand = system -> getB();
 	double error;
 	double tol = pow(10, -tolerance);
+	double sum;
 	int itCount = 0;
+	int i, j;
 	stopwatch.mark();
 	do {
 		itCount++;
-		xPrev = copy(xValues, vars);
-		for (int i = 0; i < vars; i++) {
-			line = system -> getEquation(i);
-			double sum = 0;
-			for (int j = 0; j < vars; j++) {
+		copy(xPrev, xValues, vars);
+		for (i = 0; i < vars; i++) {
+			sum = 0;
+
+			for (j = 0; j < vars; j++) {
 				if (i != j) {
-					sum += line[j] * xPrev[j];
+					sum += matrix[i][j] * xPrev[j];
 				}
 			}
-			xValues[i] = (line[vars] - sum) / (line[i]);
+			xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 		}
-		error = computeError(xPrev);
-		delete[] xPrev;
+		error = computeError();
 	} while (error >= tol);
+	delete[] xPrev;
 	stopwatch.mark();
 }
 
-void Gauss_Jacobi::computeRootsParallel() {
+void Gauss_Jacobi::computeRootsParallelOpenMP() {
 	int vars = system -> getVariableCount();
 	double* xValues = system -> getXValues();
-	double* xPrev;
-	double* line;
+	double** matrix = system -> getA();
+	double* secHand = system -> getB();
 	double error;
 	double tol = pow(10, -tolerance);
+	double sum;
 	int itCount = 0;
+	int i, j;
 	stopwatch.mark();
-	do {
-		itCount++;
-		xPrev = copy(xValues, vars);
-		#pragma omp parallel shared(vars, xValues, xPrev) private(line)
-		{
-			#pragma omp for schedule(guided) nowait
-			for (int i = 0; i < vars; i++) {
-				line = system -> getEquation(i);
-				double sum = 0;
-				for (int j = 0; j < vars; j++) {
-					if (i != j) {
-						sum += line[j] * xPrev[j];
+	#pragma omp parallel shared(vars, xValues, matrix, secHand) private (sum, i, j)
+	{
+		do {
+			itCount++;
+			copy(xPrev, xValues, vars);
+				#pragma omp for schedule(dynamic, 1)
+				for (i = 0; i < vars; i++) {
+					sum = 0;
+					for (j = 0; j < vars; j++) {
+						if (i != j) {
+							sum += matrix[i][j] * xPrev[j];
+						}
 					}
+					xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 				}
-				xValues[i] = (line[vars] - sum) / (line[i]);
-			}
-		}
-		error = computeError(xPrev);
-		delete[] xPrev;
-	} while (error >= tol);
+			error = computeError();
+		} while (error >= tol);
+	}
+	delete[] xPrev;
 	stopwatch.mark();
 }
 
-double Gauss_Jacobi::computeError(double* xPrev) {
+void Gauss_Jacobi::computeRootsParallelPThread() {
+	
+	double tol = pow(10, -tolerance);
+	pthread_t* threadIDs = new pthread_t[configuration.threads];
+	clear = new bool[configuration.threads];
+	pthread_mutex_init(&mutex, NULL);
+	stopwatch.mark();
+	readyCounter = 0;
+	int rc;
+	for (int i = 0; i < configuration.threads; i++) {
+		clear[i] = true;
+		rc = pthread_create(&threadIDs[i], NULL, Gauss_Jacobi::worker_wrapper, (void*) new ThreadParameters(this, i));
+        if (rc){
+            wcout << "ERROR: pthread_create() returned the code " << rc << "\n\n";
+            exit(-1);
+        }
+	}
+	bool enough = computeError() <= tol;
+	int itCount = 1;
+	while (!enough) {
+		if (readyCounter == configuration.threads) {
+			enough = computeError() <= tol;
+			if (!enough) {
+				itCount++;
+				copy(xPrev, system -> getXValues(), system -> getVariableCount());
+				readyCounter = 0;
+				for (int i = 0; i < configuration.threads; i++) {
+					clear[i] = true;
+				}
+			}
+		}
+	}
+	delete[] xPrev;
+	delete[] clear;
+	delete[] threadIDs;
+	stopwatch.mark();
+	wcout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA " << itCount << " iterations.\n\n\n";
+	running = false;
+	pthread_mutex_destroy(&mutex);
+}
+
+void* Gauss_Jacobi::worker_wrapper(void* param) {
+	((ThreadParameters*) param) -> instance -> gauss_jacobi_worker(((ThreadParameters*) param) -> threadID);
+}
+
+void Gauss_Jacobi::gauss_jacobi_worker(int threadID) {
+	int vars = system -> getVariableCount();
+	int tid = (int) threadID;
+	int tNumber = configuration.threads;
+	double* xValues = system -> getXValues();
+	double** matrix = system -> getA();
+	double* secHand = system -> getB();
+	double sum;
+	int i, j;
+	int lowerLimit, upperLimit;
+	int mod = vars % tNumber;
+	if (tid < mod) {
+		lowerLimit = tid * ((vars + 1) / tNumber);
+		upperLimit = (tid + 1) * ((vars + 1) / tNumber);
+	} else {
+		lowerLimit = tid * (vars / tNumber) + mod;
+		upperLimit = (tid + 1) * (vars / tNumber) + mod;
+	}
+
+	do {
+		if (clear[tid]) {
+			//wcout << " TA DEMORANDO MUITO ---- " << configuration.threads;
+			clear[tid] = false;
+			for (i = lowerLimit; i < upperLimit; i++) {
+				sum = 0;
+				for (j = 0; j < vars; j++) {
+					if (i != j) {
+						sum += matrix[i][j] * xPrev[j];
+					}
+				}
+				xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
+			}
+			pthread_mutex_lock(&mutex);
+			readyCounter++;
+			pthread_mutex_unlock(&mutex);
+		}
+	} while (running);
+	pthread_exit(NULL);
+}
+
+double Gauss_Jacobi::computeError() {
 	double* xValues = system -> getXValues();
 	double num = 0;
 	double den = 0;

@@ -32,9 +32,14 @@ InputConfiguration getConfiguration(int argc, char** argv) {
 			} else if (arg == "--sequential") {
 				config.strategy = SEQUENTIAL;
 				count++;
-			} else if (arg == "--parallel") {
-				config.strategy = PARALLEL;
+			} else if (arg == "--openmp") {
+				config.strategy = PARALLEL_OPENMP;
 				count++;
+			} else if (arg == "--pthread") {
+				if (++count < argc) {
+					config.strategy = PARALLEL_PTHREAD;
+					config.threads = stoi(argv[count++]);
+				}
 			} else if (arg == "--secs") {
 				config.resolution = SECOND;
 				count++;
