@@ -21,20 +21,38 @@ void copy(double* copied, double* original, int vars) {
 void printError() {
 	wcout << "\nYou gave me incorrect parameters!\n";
 	wcout << "Here, learn your commands for me:\n\n";
-	wcout << left << setw(30) << "--instance [INSTANCE_NAME.txt]";
+	wcout << left << "\nBASIC OPTIONS:\n\n";
+	wcout << left << setw(35) << "--instance [INSTANCE_NAME.txt]";
 	wcout << left << "With this you give me the name of the file which have the linear system you want to play with.\n";
-	wcout << left << setw(30) << "--compact";
-	wcout << left << "It means you want me to show the results in a compact matrix multiplication view. Don't use it if the input is too large!\n";
-	wcout << left << setw(30) << "--extended";
-	wcout << left << "It means you want me to show each matrix separately. Don't use it if the input is too large!\n";
-	wcout << left << setw(30) << "--equation";
-	wcout << left << "It means you want me to show the linear system in the analytic form. Don't use it if the input is too large!\n";
-	wcout << left << setw(30) << "--results";
-	wcout << left << "Use it to show only the results of the operations, that is, the x values and the residual vector. Perfect for large inputs!\n";
-	wcout << left << setw(30) << "--precision [DECIMAL_PLACES]";
+	wcout << left << setw(35) << "--precision [DECIMAL_PLACES]";
 	wcout << left << "Here you specify the precision you want me to show on the output. It doesn't really impact on the calculations...\n";
-	wcout << left << setw(30) << "--tolerance [MAX_ERROR]";
-	wcout << left << "And here you specify what's the maximum tolerated error. A bigger value shows better results, but it's slower!\n\n";
+	wcout << left << setw(35) << "--tolerance [MAX_ERROR]";
+	wcout << left << "And here you specify what's the maximum tolerated error. A bigger value shows better results, but it's slower!\n";
+	wcout << left << "\nOUTPUT OPTIONS:\n\n";
+	wcout << left << setw(35) << "--compact";
+	wcout << left << "It means you want me to show the results in a compact matrix multiplication view. Don't use it if the input is too large!\n";
+	wcout << left << setw(35) << "--extended";
+	wcout << left << "It means you want me to show each matrix separately. Don't use it if the input is too large!\n";
+	wcout << left << setw(35) << "--equation";
+	wcout << left << "It means you want me to show the linear system in the analytic form. Don't use it if the input is too large!\n";
+	wcout << left << setw(35) << "--results";
+	wcout << left << "Use it to show only the results of the operations, that is, the x values and the residual vector. Perfect for large inputs!\n";
+	wcout << left << "\nPARALLELIZATION OPTIONS:\n\n";
+	wcout << left << setw(35) << "--sequential";
+	wcout << left << "I'll calculate everything the way you're familiar with, everything in one big thread, no parallelization at all.\n";
+	wcout << left << setw(35) << "--openmp";
+	wcout << left << "I'll split the work of calculations between different and concurrent lines of processing, using the OpenMP library.\n";
+	wcout << left << setw(35) << "--pthread [NUMBER_OF_THREADS]";
+	wcout << left << "I'll split the work of calculations between different and concurrent lines of processing, using the POSIX Thread library.\n";
+	wcout << left << "\nTIME OPTIONS:\n\n";
+	wcout << left << setw(35) << "--secs";
+	wcout << left << "I'll count the time in seconds.\n";
+	wcout << left << setw(35) << "--millis";
+	wcout << left << "I'll count the time in milliseconds.\n";
+	wcout << left << setw(35) << "--micros";
+	wcout << left << "I'll count the time in microseconds.\n";
+	wcout << left << setw(35) << "--nanos";
+	wcout << left << "I'll count the time in nanoseconds.\n\n\n";
 }
 
 int getColumnWidth(double* values, int size, int precision) {
@@ -152,12 +170,9 @@ LinearSystem::LinearSystem(string fileName, int precision) {
 }
 
 LinearSystem::~LinearSystem() {
-	for (int i = 0; i < variableCount; i++) {
-		delete[] A[i];
-	}
-	delete[] A;
 	delete[] x;
 	delete[] b;
+	delete[] allocation;
 }
 
 void LinearSystem::loadInstance(string fileName) {
@@ -175,11 +190,12 @@ void LinearSystem::loadInstance(string fileName) {
 }
 
 void LinearSystem::initialize() {
+	allocation = new double[variableCount * variableCount];
 	A = new double*[variableCount];
 	x = new double[variableCount];
 	b = new double[variableCount];
 	for (int i = 0; i < variableCount; i++) {
-		A[i] = new double[variableCount];
+		A[i] = &allocation[i * variableCount];
 		x[i] = 0;
 	}
 }
@@ -582,12 +598,12 @@ void Gauss_Jacobi::computeRootsSequential() {
 	double* secHand = system -> getB();
 	double error;
 	double tol = pow(10, -tolerance);
+	double totalTime = 0;
 	double sum;
-	int itCount = 0;
+	int itCount = 1;
 	int i, j;
 	stopwatch.mark();
 	do {
-		itCount++;
 		copy(xPrev, xValues, vars);
 		for (i = 0; i < vars; i++) {
 			sum = 0;
@@ -600,6 +616,18 @@ void Gauss_Jacobi::computeRootsSequential() {
 			xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 		}
 		error = computeError();
+		if (itCount <= 500) {
+			stopwatch.mark();
+			totalTime += stopwatch.getElapsedTime(configuration.resolution);
+			wcerr << "SOLUTION #" << itCount << " ||| ~TIME = " << (totalTime / itCount) << "ms" << ".\n";
+			itCount++;
+			for (int i = 0; i < vars; i++) {
+				xValues[i] = 0;
+			}
+			copy(xPrev, xValues, vars);
+			error = 1;
+			stopwatch.mark();
+		}
 	} while (error >= tol);
 	delete[] xPrev;
 	stopwatch.mark();
@@ -613,25 +641,59 @@ void Gauss_Jacobi::computeRootsParallelOpenMP() {
 	double error;
 	double tol = pow(10, -tolerance);
 	double sum;
-	int itCount = 0;
-	int i, j;
+	double totalTime = 0;
+	int itCount = 1;
+	int i, j, tNumber, tid;
+	int ll, ul, mod;
 	stopwatch.mark();
-	#pragma omp parallel shared(vars, xValues, matrix, secHand) private (sum, i, j)
+	copy(xPrev, xValues, vars);
+	#pragma omp parallel shared(vars, xValues, matrix, secHand, mod, tNumber, error) private (sum, tid, i, j, ll, ul)
 	{
+		#pragma omp master
+		{
+			tNumber = omp_get_num_threads();
+			mod = vars % tNumber;
+		}
+		tid = omp_get_thread_num();
+		#pragma omp barrier
+		if (tid < mod) {
+			ll = tid * ((vars + 1) / tNumber);
+			ul = (tid + 1) * ((vars + 1) / tNumber);
+		} else {
+			ll = tid * (vars / tNumber) + mod;
+			ul = (tid + 1) * (vars / tNumber) + mod;
+		}
 		do {
-			itCount++;
-			copy(xPrev, xValues, vars);
-				#pragma omp for schedule(dynamic, 1)
-				for (i = 0; i < vars; i++) {
-					sum = 0;
-					for (j = 0; j < vars; j++) {
-						if (i != j) {
-							sum += matrix[i][j] * xPrev[j];
-						}
+			for (i = ll; i < ul; i++) {
+				sum = 0;
+				for (j = 0; j < vars; j++) {
+					if (i != j) {
+						sum += matrix[i][j] * xPrev[j];
 					}
-					xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 				}
-			error = computeError();
+				xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
+			}
+			//wcerr << "TA INDO OU NN? :::" << tid << ":::\t";
+			#pragma omp barrier
+			#pragma omp master
+			{
+				error = computeError();
+				if (error >= tol) {
+					copy(xPrev, xValues, vars);
+				} else if (itCount <= 500) {
+					stopwatch.mark();
+					totalTime += stopwatch.getElapsedTime(configuration.resolution);
+					wcerr << "SOLUTION #" << itCount << " ||| ~TIME = " << (totalTime / itCount) << "ms" << ".\n";
+					itCount++;
+					for (int i = 0; i < vars; i++) {
+						xValues[i] = 0;
+					}
+					copy(xPrev, xValues, vars);
+					error = 1;
+					stopwatch.mark();
+				}
+			}
+			#pragma omp barrier
 		} while (error >= tol);
 	}
 	delete[] xPrev;
@@ -639,58 +701,40 @@ void Gauss_Jacobi::computeRootsParallelOpenMP() {
 }
 
 void Gauss_Jacobi::computeRootsParallelPThread() {
-	
-	double tol = pow(10, -tolerance);
 	pthread_t* threadIDs = new pthread_t[configuration.threads];
-	clear = new bool[configuration.threads];
-	pthread_mutex_init(&mutex, NULL);
-	stopwatch.mark();
-	readyCounter = 0;
+	pthread_barrier_init(&barrier, NULL, configuration.threads);
 	int rc;
 	for (int i = 0; i < configuration.threads; i++) {
-		clear[i] = true;
+		//wcerr << "CREATING THREAD #" << i << "\n";
 		rc = pthread_create(&threadIDs[i], NULL, Gauss_Jacobi::worker_wrapper, (void*) new ThreadParameters(this, i));
         if (rc){
             wcout << "ERROR: pthread_create() returned the code " << rc << "\n\n";
             exit(-1);
         }
 	}
-	bool enough = computeError() <= tol;
-	int itCount = 1;
-	while (!enough) {
-		if (readyCounter == configuration.threads) {
-			enough = computeError() <= tol;
-			if (!enough) {
-				itCount++;
-				copy(xPrev, system -> getXValues(), system -> getVariableCount());
-				readyCounter = 0;
-				for (int i = 0; i < configuration.threads; i++) {
-					clear[i] = true;
-				}
-			}
-		}
+	for (int i = 0; i < configuration.threads; i++) {
+		pthread_join(threadIDs[i], NULL);
 	}
 	delete[] xPrev;
-	delete[] clear;
 	delete[] threadIDs;
-	stopwatch.mark();
-	wcout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA " << itCount << " iterations.\n\n\n";
 	running = false;
-	pthread_mutex_destroy(&mutex);
+	pthread_barrier_destroy(&barrier);
 }
 
 void* Gauss_Jacobi::worker_wrapper(void* param) {
-	((ThreadParameters*) param) -> instance -> gauss_jacobi_worker(((ThreadParameters*) param) -> threadID);
+	((ThreadParameters*) param) -> instance -> gauss_jacobi_worker(((ThreadParameters*) param) -> threadID, ((ThreadParameters*) param) -> itCounter);
 }
 
-void Gauss_Jacobi::gauss_jacobi_worker(int threadID) {
+void Gauss_Jacobi::gauss_jacobi_worker(int threadID, int& itCount) {
 	int vars = system -> getVariableCount();
 	int tid = (int) threadID;
 	int tNumber = configuration.threads;
 	double* xValues = system -> getXValues();
 	double** matrix = system -> getA();
 	double* secHand = system -> getB();
+	double tol = pow(10, -tolerance);
 	double sum;
+	double totalTime = 0;
 	int i, j;
 	int lowerLimit, upperLimit;
 	int mod = vars % tNumber;
@@ -702,24 +746,51 @@ void Gauss_Jacobi::gauss_jacobi_worker(int threadID) {
 		upperLimit = (tid + 1) * (vars / tNumber) + mod;
 	}
 
+	if (tid == 0) {
+		copy(xPrev, system -> getXValues(), system -> getVariableCount());
+	}
+
+	pthread_barrier_wait(&barrier);
+
+	if (tid == 0) {
+		stopwatch.mark();
+	}
+
+	//wcerr << "THREAD #" << tid << "\n";
 	do {
-		if (clear[tid]) {
-			//wcout << " TA DEMORANDO MUITO ---- " << configuration.threads;
-			clear[tid] = false;
-			for (i = lowerLimit; i < upperLimit; i++) {
-				sum = 0;
-				for (j = 0; j < vars; j++) {
-					if (i != j) {
-						sum += matrix[i][j] * xPrev[j];
-					}
+		//wcerr << "a";
+		for (i = lowerLimit; i < upperLimit; i++) {
+			sum = 0;
+			for (j = 0; j < vars; j++) {
+				if (i != j) {
+					sum += matrix[i][j] * xPrev[j];
 				}
-				xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 			}
-			pthread_mutex_lock(&mutex);
-			readyCounter++;
-			pthread_mutex_unlock(&mutex);
+			xValues[i] = (secHand[i] - sum) / (matrix[i][i]);
 		}
+		pthread_barrier_wait(&barrier);
+		if (tid == 0) {
+			running = computeError() > tol;
+			if (running) {
+				copy(xPrev, system -> getXValues(), system -> getVariableCount());
+			} else if (itCount <= 500) {
+				stopwatch.mark();
+				totalTime += stopwatch.getElapsedTime(configuration.resolution);
+				wcerr << "SOLUTION #" << itCount << " ||| ~TIME = " << (totalTime / itCount) << "ms" << ".\n";
+				itCount++;
+				for (int i = 0; i < vars; i++) {
+					xValues[i] = 0;
+				}
+				copy(xPrev, xValues, vars);
+				running = true;
+				stopwatch.mark();
+			}
+		}
+		pthread_barrier_wait(&barrier);
 	} while (running);
+	if (tid == 0) {
+		stopwatch.mark();
+	}
 	pthread_exit(NULL);
 }
 

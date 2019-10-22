@@ -68,6 +68,7 @@ class LinearSystem {
 	private:
 		int variableCount;
 		int precision;
+		double* allocation;
 		double** A;
 		double* x;
 		double* b;
@@ -104,9 +105,7 @@ class Gauss_Jacobi {
 		InputConfiguration configuration;
 		Stopwatch stopwatch;
 		bool running;
-		int readyCounter;
-		bool* clear;
-		pthread_mutex_t mutex;
+		pthread_barrier_t barrier;
 		double computeError();
 		void computeRootsSequential();
 		void computeRootsParallelOpenMP();
@@ -114,7 +113,7 @@ class Gauss_Jacobi {
 		void printIntro(wostream& output);
 		void printFullHeader(wostream& output);
 		void printBasicHeader(wostream& output);
-		void gauss_jacobi_worker(int threadID);
+		void gauss_jacobi_worker(int threadID, int& itCounter);
 		static void* worker_wrapper(void* param);
 	public:
 		Gauss_Jacobi(LinearSystem* system, double tolerance);
@@ -127,7 +126,8 @@ class ThreadParameters {
 	public:
 		Gauss_Jacobi* instance;
 		int threadID;
-		ThreadParameters(Gauss_Jacobi* inst, int tid) { instance = inst; threadID = tid; }
+		int itCounter;
+		ThreadParameters(Gauss_Jacobi* inst, int tid) { instance = inst; threadID = tid; itCounter = 1; }
 };
 
 #endif
